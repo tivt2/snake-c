@@ -4,6 +4,8 @@
 #include <SDL2/SDL_timer.h>
 #include <SDL2/SDL_video.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
 
 typedef struct Cell {
     int x;
@@ -13,17 +15,19 @@ typedef struct Cell {
 struct Game {
     SDL_Window *window;
     SDL_Renderer *renderer;
-    int target_fps;
     int width;
     int height;
 
     int is_game_running;
+    int target_fps;
     int last_tick;
 
     Cell **snake;
     int length;
     int dir;
     int snake_size;
+
+    Cell *food;
 } Game;
 
 Cell *create_cell(int x, int y){
@@ -33,23 +37,36 @@ Cell *create_cell(int x, int y){
     return cell;
 }
 
+int randTile(int max) {
+    int tile = rand() % (max / Game.snake_size);
+    int randMax = tile * Game.snake_size;
+    return randMax;
+}
+
 void initialize_game(int width, int height, int fps) {
+    srand(time(NULL));
+    int size = 32;
+
     Game.window = NULL;
     Game.renderer = NULL;
-    Game.target_fps = 1000/fps;
     Game.width = width;
     Game.height = height;
 
     Game.is_game_running = 0;
+    Game.target_fps = 1000/fps;
     Game.last_tick = 0;
-    Game.length = 4;
-    Game.snake = (Cell **)malloc(40 * sizeof(Cell *));
-    Game.snake[0] = create_cell(100, 100);
-    Game.snake[1] = create_cell(80, 100);
-    Game.snake[2] = create_cell(60, 100);
-    Game.snake[3] = create_cell(40, 100);
+
+    Game.snake_size = Game.height/size;
+
+    int max_tiles = (Game.width / size) * Game.snake_size;
+    Game.snake = (Cell **)malloc(max_tiles * sizeof(Cell *));
+    Game.snake[0] = create_cell(Game.snake_size*2, 0);
+    Game.snake[1] = create_cell(Game.snake_size, 0);
+    Game.snake[2] = create_cell(0, 0);
+    Game.length = 3;
     Game.dir = 1;
-    Game.snake_size = 20;
+
+    Game.food = create_cell(randTile(Game.width), randTile(Game.height));
 }
 
 int initialize_window(void) {
@@ -125,8 +142,21 @@ void check_colision() {
     }
 }
 
+void check_eating() {
+    if (Game.snake[0]->x == Game.food->x &&
+        Game.snake[0]->y == Game.food->y) {
+        Game.snake[Game.length] = create_cell(Game.snake[Game.length-1]->x,
+                                              Game.snake[Game.length-1]->y);
+        Game.length++;
+
+        Game.food->x = randTile(Game.width);
+        Game.food->y = randTile(Game.height);
+    }
+}
+
 void update() {
     check_colision();
+    check_eating();
     int delay = Game.target_fps - (SDL_GetTicks() - Game.last_tick);
     if (delay > 0) {
         SDL_Delay(delay);
@@ -176,29 +206,38 @@ void draw_snake() {
         SDL_RenderFillRect(
             Game.renderer,
             &(SDL_Rect){
-            .x = Game.snake[i]->x,
-            .y = Game.snake[i]->y,
-            .w = Game.snake_size,
-            .h = Game.snake_size,
+                .x = Game.snake[i]->x,
+                .y = Game.snake[i]->y,
+                .w = Game.snake_size,
+                .h = Game.snake_size,
             });
     }
 }
 
 void draw_food() {
+    SDL_SetRenderDrawColor(Game.renderer,0, 126, 0, 255);
+    SDL_RenderFillRect(
+        Game.renderer,
+        &(SDL_Rect){
+            .x = Game.food->x,
+            .y = Game.food->y,
+            .w = Game.snake_size,
+            .h = Game.snake_size,
+        });
 }
 
 void draw() {
     SDL_SetRenderDrawColor(Game.renderer, 0, 0, 0, 255);
     SDL_RenderClear(Game.renderer);
     
-    draw_snake();
     draw_food();
+    draw_snake();
 
     SDL_RenderPresent(Game.renderer);
 }
 
 int main() {
-    initialize_game(800, 600, 24);
+    initialize_game(800, 640, 20);
     Game.is_game_running = initialize_window();
 
     printf("Game is running...\n");
