@@ -1,12 +1,14 @@
+#include <SDL2/SDL.h>
 #include <SDL2/SDL_events.h>
 #include <SDL2/SDL_render.h>
+#include <SDL2/SDL_timer.h>
 #include <SDL2/SDL_video.h>
 #include <stdio.h>
-#include <SDL2/SDL.h>
 
-typedef struct Snake {
-    
-} Snake;
+typedef struct Cell {
+    int x;
+    int y;
+} Cell;
 
 struct Game {
     SDL_Window *window;
@@ -16,20 +18,38 @@ struct Game {
     int height;
 
     int is_game_running;
-    Snake *snake;
-    int points;
+    int last_tick;
+
+    Cell **snake;
+    int length;
+    int dir;
+    int snake_size;
 } Game;
+
+Cell *create_cell(int x, int y){
+    Cell *cell = (Cell *)malloc(sizeof(Cell));
+    cell->x = x;
+    cell->y = y;
+    return cell;
+}
 
 void initialize_game(int width, int height, int fps) {
     Game.window = NULL;
     Game.renderer = NULL;
-    Game.target_fps = fps;
+    Game.target_fps = 1000/fps;
     Game.width = width;
     Game.height = height;
 
     Game.is_game_running = 0;
-    Game.snake = NULL;
-    Game.points = 0;
+    Game.last_tick = 0;
+    Game.length = 4;
+    Game.snake = (Cell **)malloc(40 * sizeof(Cell *));
+    Game.snake[0] = create_cell(100, 100);
+    Game.snake[1] = create_cell(80, 100);
+    Game.snake[2] = create_cell(60, 100);
+    Game.snake[3] = create_cell(40, 100);
+    Game.dir = 1;
+    Game.snake_size = 20;
 }
 
 int initialize_window(void) {
@@ -75,23 +95,113 @@ void read_input() {
             Game.is_game_running = 0;
             break;
         case SDL_KEYDOWN:
-            if (event.key.keysym.sym == SDLK_ESCAPE) {
-                Game.is_game_running = 0;
+            switch (event.key.keysym.sym) {
+                case SDLK_ESCAPE:
+                    Game.is_game_running = 0;
+                    break;
+                case SDLK_UP:
+                    Game.dir = 0;
+                    break;
+                case SDLK_RIGHT:
+                    Game.dir = 1;
+                    break;
+                case SDLK_DOWN:
+                    Game.dir = 2;
+                    break;
+                case SDLK_LEFT:
+                    Game.dir = 3;
+                    break;
             }
             break;
     }
 }
 
+void check_colision() {
+    for (int i = 1; i < Game.length; i++) {
+        if (Game.snake[0]->x == Game.snake[i]->x &&
+            Game.snake[0]->y == Game.snake[i]->y) {
+            Game.is_game_running = 0;
+        }
+    }
+}
+
 void update() {
+    check_colision();
+    int delay = Game.target_fps - (SDL_GetTicks() - Game.last_tick);
+    if (delay > 0) {
+        SDL_Delay(delay);
+    }
+    Game.last_tick = SDL_GetTicks();
+
+    int headX = Game.snake[0]->x;
+    int headY = Game.snake[0]->y;
+    switch (Game.dir) {
+        case 0:
+            Game.snake[0]->y -= Game.snake_size;
+            if (Game.snake[0]->y < 0) {
+                Game.snake[0]->y += Game.height;
+            }
+        break;
+        case 1:
+            Game.snake[0]->x += Game.snake_size;
+            Game.snake[0]->x %= Game.width;
+        break;
+        case 2:
+            Game.snake[0]->y += Game.snake_size;
+            Game.snake[0]->y %= Game.height;
+        break;
+        case 3:
+            Game.snake[0]->x -= Game.snake_size;
+            if (Game.snake[0]->x < 0) {
+                Game.snake[0]->x += Game.width;
+            }
+        break;
+    }
+
+    if (Game.length > 1) {
+        Game.snake[Game.length-1]->x = headX;
+        Game.snake[Game.length-1]->y = headY;
+
+        Cell *lastCell = Game.snake[Game.length-1];
+        for (int i = Game.length - 1; i > 1; i--) {
+            Game.snake[i] = Game.snake[i - 1];
+        }
+        Game.snake[1] = lastCell;
+    }
+}
+
+void draw_snake() {
+    SDL_SetRenderDrawColor(Game.renderer, 0, 255, 0, 255);
+    for (int i = 0; i < Game.length; i++) {
+        SDL_RenderFillRect(
+            Game.renderer,
+            &(SDL_Rect){
+            .x = Game.snake[i]->x,
+            .y = Game.snake[i]->y,
+            .w = Game.snake_size,
+            .h = Game.snake_size,
+            });
+    }
+}
+
+void draw_food() {
 }
 
 void draw() {
+    SDL_SetRenderDrawColor(Game.renderer, 0, 0, 0, 255);
+    SDL_RenderClear(Game.renderer);
+    
+    draw_snake();
+    draw_food();
+
+    SDL_RenderPresent(Game.renderer);
 }
 
 int main() {
-    initialize_game(800, 600, 60);
+    initialize_game(800, 600, 24);
     Game.is_game_running = initialize_window();
 
+    printf("Game is running...\n");
     while (Game.is_game_running) {
         read_input();
         update();
