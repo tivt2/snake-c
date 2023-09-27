@@ -237,7 +237,7 @@ void draw() {
 }
 
 int main() {
-    initialize_game(800, 640, 20);
+    initialize_game(800, 640, 24);
     Game.is_game_running = initialize_window();
 
     printf("Game is running...\n");
